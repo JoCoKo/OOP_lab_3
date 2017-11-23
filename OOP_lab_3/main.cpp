@@ -12,9 +12,10 @@ int main()
     // ################  Tests for WavCore  ################
 
 
-	Wav wav1, wav2;
+
 	try
 	{
+		Wav wav1, wav2;
 		wav1.readHeader("0.wav");
 		wav1.printHeaderInfo();
 		wav1.read16BitData();

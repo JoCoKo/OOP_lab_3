@@ -11,10 +11,20 @@
 
 void Wav::readHeader(char* filename)
 {
-	inFileName = filename;
+//	inFileName = filename;
+	{
+		size_t L = strlen(filename);
+		inFileName = (char*)malloc(sizeof(char)*(L+1));
+		if (inFileName != NULL)
+		{
+			memccpy(inFileName, filename, sizeof(char), (L + 1));
+			//inited=1;
+		}
+		else
+			throw WavGeneralErrors("Not enough memory for malloc inFileName");
+	}
     printf( ">>>> readHeader( %s )\n", inFileName );
     setHeaderNull(); // Fill header with zeroes.
-
 	FILE* f;
 	fopen_s(&f,inFileName, "rb");
     if ( !f ) 
@@ -51,7 +61,6 @@ void Wav::printHeaderInfo()
     printf( " subchunk2Size %u\n", header.subchunk2Size );
     printf( "-------------------------\n" );
 }
-
 
 void Wav::read16BitData()
 {
