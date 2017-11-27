@@ -8,32 +8,25 @@ int main()
 {
     cout << "************** | WavCore | **************" << endl;
 
-
-    // ################  Tests for WavCore  ################
-
-
-
 	try
 	{
-		Wav wav1, wav2;
-		wav1.readHeader("0.wav");
-		wav1.printHeaderInfo();
-		wav1.read16BitData();
-		cout << endl << "********************" << endl;
+		Wav wav1;
+		wav1.createFromFile("0.wav");
+		cout << wav1.GetDescription() << endl;
 		wav1.convertToMono();
 		wav1.reverbate(0.5, 0.6f);
-		wav1.makeWavFile("out.wav");
-		wav2.readHeader("out.wav");
-		wav2.printHeaderInfo();
+		wav1.saveToFile("out.wav");
+
+		Wav wav2("out.wav");
+		cout << wav2.GetDescription() << endl;
+		int sampleRate = wav2.getSampleRate();
+		int chanCount = wav2.getChanCount();
+		bool isStereo = wav2.isStereo();
 	}
 	catch (WavGeneralErrors& error)
 	{
 		cerr << error.get() << endl;
-	}
-	catch (WavHeadersErrors& error)
-	{
-		cerr << error.get() << endl;
-	}
+	};
 
 	getchar();
     return 0;

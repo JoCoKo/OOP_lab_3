@@ -5,112 +5,115 @@
 #include "wav_core.h"
 
 
-// TODO: Remove all 'magic' numbers
-
-
-
-void Wav::readHeader(char* filename)
+void Wav::createFromFile(char* filename)
 {
-//	inFileName = filename;
+	size_t L = strlen(filename);
+	inFileName = (char*)malloc(sizeof(char)*(L + 1));
+	if (inFileName != NULL)
 	{
-		size_t L = strlen(filename);
-		inFileName = (char*)malloc(sizeof(char)*(L+1));
-		if (inFileName != NULL)
-		{
-			memccpy(inFileName, filename, sizeof(char), (L + 1));
-			//inited=1;
-		}
-		else
-			throw WavGeneralErrors("Not enough memory for malloc inFileName");
+		_memccpy(inFileName, filename, sizeof(char), (L + 1));
+		//inited=1;
 	}
-    printf( ">>>> readHeader( %s )\n", inFileName );
-    setHeaderNull(); // Fill header with zeroes.
-	FILE* f;
-	fopen_s(&f,inFileName, "rb");
-    if ( !f ) 
-	{
-        throw WavGeneralErrors("IO_ERROR");
-    }
+	else
+		throw WavGeneralErrors("Not enough memory for malloc inFileName");
 
-    size_t blocks_read = fread(&header, sizeof(headerStruct), 1, f);
-    if ( blocks_read != 1 ) 
-	{
-        // can't read header, because the file is too small.
-		throw WavGeneralErrors("BAD_FORMAT");
-    }
-
-    fseek( f, 0, SEEK_END ); // seek to the end of the file
-    size_t file_size = ftell( f ); // current position is a file size!
-    fclose( f );
-
-	checkHeader(file_size);
-    
-}
-
-void Wav::printHeaderInfo()
-{
-    printf( "-------------------------\n" );
-    printf( " audioFormat   %u\n", header.audioFormat );
-    printf( " numChannels   %u\n", header.numChannels );
-    printf( " sampleRate    %u\n", header.sampleRate );
-    printf( " bitsPerSample %u\n", header.bitsPerSample );
-    printf( " byteRate      %u\n", header.byteRate );
-    printf( " blockAlign    %u\n", header.blockAlign );
-    printf( " chunkSize     %u\n", header.chunkSize );
-    printf( " subchunk1Size %u\n", header.subchunk1Size );
-    printf( " subchunk2Size %u\n", header.subchunk2Size );
-    printf( "-------------------------\n" );
-}
-
-void Wav::read16BitData()
-{
-    printf( ">>>> read16BitData( %s )\n", inFileName );
-    readHeader(inFileName);
-
-    if ( header.bitsPerSample != 16 ) 
-	{
-        // Only 16-bit samples is supported.
-		throw WavGeneralErrors("UNSUPPORTED_FORMAT");
-    }
-
+	setHeaderNull(); // Fill header with zeroes.
 	FILE* f;
 	fopen_s(&f, inFileName, "rb");
-    if ( !f ) 
+	if (!f)
 	{
 		throw WavGeneralErrors("IO_ERROR");
-    }
-    fseek( f, 44, SEEK_SET ); // Seek to the begining of PCM data.
+	}
 
-    int chan_count = header.numChannels;
-    int samples_per_chan = ( header.subchunk2Size / sizeof(short) ) / chan_count;
-
-    // 1. Reading all PCM data from file to a single vector.
-    std::vector<short> all_channels;
-    all_channels.resize( chan_count * samples_per_chan );
-    size_t read_bytes = fread( all_channels.data(), 1, header.subchunk2Size, f );
-    if ( read_bytes != header.subchunk2Size ) 
+	size_t blocks_read = fread(&header, sizeof(headerStruct), 1, f);
+	if (blocks_read != 1)
 	{
-        printf( "read16BitData() read only %zu of %u\n", read_bytes, header.subchunk2Size );
-		throw WavGeneralErrors("IO_ERROR");
-    }
-    fclose( f );
+		// can't read header, because the file is too small.
+		throw WavGeneralErrors("BAD_FORMAT");
+	}
+
+	fseek(f, 0, SEEK_END); // seek to the end of the file
+	size_t file_size = ftell(f); // current position is a file size!
+	checkHeader(file_size);
 
 
-    // 2. Put all channels to its own vector.
-    sourceChannelsData.resize( chan_count );
-    for ( size_t ch = 0; ch < sourceChannelsData.size(); ch++ ) 
+
+
+
+	if (header.bitsPerSample != 16)
 	{
-        sourceChannelsData[ ch ].resize( samples_per_chan );
-    }
+		// Only 16-bit samples is supported.
+		throw WavGeneralErrors("UNSUPPORTED_FORMAT (not 16 bit)");
+	}
 
-    for ( int ch = 0; ch < chan_count; ch++ ) 
+	fseek(f, 44, SEEK_SET); // Seek to the begining of PCM data.
+
+	int chan_count = header.numChannels;
+	int samples_per_chan = (header.subchunk2Size / sizeof(short)) / chan_count;
+
+	// 1. Reading all PCM data from file to a single vector.
+	std::vector<short> all_channels;
+	all_channels.resize(chan_count * samples_per_chan);
+	size_t read_bytes = fread(all_channels.data(), 1, header.subchunk2Size, f);
+	if (read_bytes != header.subchunk2Size)
 	{
-        std::vector<short>& chdata = sourceChannelsData[ ch ];
-        for ( size_t i = 0; i < samples_per_chan; i++ ) 
+		char buffer[100];
+		sprintf_s(buffer, "IO_ERROR. read16BitData() read only %zu of %u\n", read_bytes, header.subchunk2Size);
+		throw WavGeneralErrors(buffer);
+	}
+
+	inited = true;
+
+	fclose(f);
+
+
+	// 2. Put all channels to its own vector.
+	sourceChannelsData.resize(chan_count);
+	for (size_t ch = 0; ch < sourceChannelsData.size(); ch++)
+	{
+		sourceChannelsData[ch].resize(samples_per_chan);
+	}
+
+	for (int ch = 0; ch < chan_count; ch++)
+	{
+		std::vector<short>& chdata = sourceChannelsData[ch];
+		for (size_t i = 0; i < samples_per_chan; i++)
 		{
-            chdata[ i ] = all_channels[ chan_count * i + ch ];
-        }
-    }
+			chdata[i] = all_channels[chan_count * i + ch];
+		}
+	}
+
+}
+
+std::string Wav::GetDescription()
+{
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
+	char buffer[50];
+	std::string str = inFileName;
+	str += " Information\n-------------------------\n";
+	sprintf_s(buffer, " audioFormat   %u\n", header.audioFormat);
+	str += buffer;
+    sprintf_s(buffer, " audioFormat   %u\n", header.audioFormat );
+	str += buffer;
+	sprintf_s(buffer, " numChannels   %u\n", header.numChannels );
+	str += buffer;
+	sprintf_s(buffer, " sampleRate    %u\n", header.sampleRate );
+	str += buffer;
+	sprintf_s(buffer, " bitsPerSample %u\n", header.bitsPerSample );
+	str += buffer;
+	sprintf_s(buffer, " byteRate      %u\n", header.byteRate );
+	str += buffer;
+	sprintf_s(buffer, " blockAlign    %u\n", header.blockAlign );
+	str += buffer;
+	sprintf_s(buffer, " chunkSize     %u\n", header.chunkSize );
+	str += buffer;
+	sprintf_s(buffer, " subchunk1Size %u\n", header.subchunk1Size );
+	str += buffer;
+	sprintf_s(buffer, " subchunk2Size %u\n", header.subchunk2Size );
+	str += buffer;
+	str+="-------------------------\n";
+	return str;
 }
 
 void Wav::checkHeader(size_t file_size_bytes )
@@ -122,12 +125,12 @@ void Wav::checkHeader(size_t file_size_bytes )
          header.chunkId[2] != 0x46 ||
          header.chunkId[3] != 0x46 )
     {
-		throw WavHeadersErrors("HEADER_RIFF_ERROR");
+		throw WavGeneralErrors("HEADER_RIFF_ERROR");
     }
 
     if ( header.chunkSize != file_size_bytes - 8 ) 
 	{
-		throw WavHeadersErrors("HEADER_FILE_SIZE_ERROR");
+		throw WavGeneralErrors("HEADER_FILE_SIZE_ERROR");
     }
 
     if ( header.format[0] != 0x57 ||
@@ -135,7 +138,7 @@ void Wav::checkHeader(size_t file_size_bytes )
          header.format[2] != 0x56 ||
          header.format[3] != 0x45 )
     {
-		throw WavHeadersErrors("HEADER_WAVE_ERROR");
+		throw WavGeneralErrors("HEADER_WAVE_ERROR");
     }
 
     if ( header.subchunk1Id[0] != 0x66 ||
@@ -143,27 +146,27 @@ void Wav::checkHeader(size_t file_size_bytes )
          header.subchunk1Id[2] != 0x74 ||
          header.subchunk1Id[3] != 0x20 )
     {
-		throw WavHeadersErrors("HEADER_FMT_ERROR");
+		throw WavGeneralErrors("HEADER_FMT_ERROR");
     }
 
     if ( header.audioFormat != 1 ) 
 	{
-		throw WavHeadersErrors("HEADER_NOT_PCM");
+		throw WavGeneralErrors("HEADER_NOT_PCM");
     }
 
     if ( header.subchunk1Size != 16 ) 
 	{
-		throw WavHeadersErrors("HEADER_SUBCHUNK1_ERROR");
+		throw WavGeneralErrors("HEADER_SUBCHUNK1_ERROR");
     }
 
     if ( header.byteRate != header.sampleRate * header.numChannels * header.bitsPerSample/8 ) 
 	{
-		throw WavHeadersErrors("HEADER_BYTES_RATE_ERROR");
+		throw WavGeneralErrors("HEADER_BYTES_RATE_ERROR");
     }
 
     if ( header.blockAlign != header.numChannels * header.bitsPerSample/8 ) 
 	{
-		throw WavHeadersErrors("HEADER_BLOCK_ALIGN_ERROR");
+		throw WavGeneralErrors("HEADER_BLOCK_ALIGN_ERROR");
     }
 
     if ( header.subchunk2Id[0] != 0x64 ||
@@ -171,12 +174,12 @@ void Wav::checkHeader(size_t file_size_bytes )
          header.subchunk2Id[2] != 0x74 ||
          header.subchunk2Id[3] != 0x61 )
     {
-		throw WavHeadersErrors("HEADER_FMT_ERROR");
+		throw WavGeneralErrors("HEADER_FMT_ERROR");
     }
 
     if ( header.subchunk2Size != file_size_bytes - 44 )
     {
-		throw WavHeadersErrors("HEADER_SUBCHUNK2_SIZE_ERROR");
+		throw WavGeneralErrors("HEADER_SUBCHUNK2_SIZE_ERROR");
     }
 }
 
@@ -214,7 +217,7 @@ void Wav::fillHeader(int chan_count, int bits_per_sample, int sample_rate, int s
 {
     if ( bits_per_sample != 16 ) 
 	{
-		throw WavGeneralErrors("UNSUPPORTED_FORMAT");
+		throw WavGeneralErrors("UNSUPPORTED_FORMAT (not 16 bit)");
     }
 
     if ( chan_count < 1 ) 
@@ -236,10 +239,10 @@ void Wav::fillHeader(int chan_count, int bits_per_sample, int sample_rate, int s
     header.blockAlign    = header.numChannels * header.bitsPerSample/8;
 }
 
-void Wav::makeWavFile(char* filename)
+void Wav::saveToFile(char* outFileName)
 {
-	outFileName = filename;
-    printf( ">>>> makeWavFile( %s )\n", outFileName );
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
 
     int chan_count = (int)editedChannelsData.size();
 
@@ -255,7 +258,7 @@ void Wav::makeWavFile(char* filename)
 	{
         if ( editedChannelsData[ ch ].size() != (size_t) samples_count_per_chan ) 
 		{
-			throw WavGeneralErrors("BAD_PARAMS");
+			throw WavGeneralErrors("BAD_PARAMS (not all channels have the same number of samples)");
         }
     }
 
@@ -292,6 +295,9 @@ void Wav::setHeaderNull()
 
 void Wav::convertToMono()
 {
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
+
     int chan_count = (int)sourceChannelsData.size();
 
     if ( chan_count != 2 ) 
@@ -323,6 +329,9 @@ void Wav::convertToMono()
 
 void Wav::reverbate(double delay_seconds, float decay)
 {
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
+
     int chan_count = (int)editedChannelsData.size();
 
     if ( chan_count < 1 ) 
@@ -337,7 +346,7 @@ void Wav::reverbate(double delay_seconds, float decay)
 	{
         if ( editedChannelsData[ ch ].size() != (size_t) samples_count_per_chan ) 
 		{
-			throw WavGeneralErrors("BAD_PARAMS");
+			throw WavGeneralErrors("BAD_PARAMS (not all channels have the same number of samples)");
         }
     }
 
@@ -375,7 +384,7 @@ void Wav::reverbate(double delay_seconds, float decay)
         // After reverb, usually there are values large 32000.
         // So we must scale all values back to [ -32768 ... 32768 ]
         float norm_coef = 30000.0f / max_magnitude;
-        printf( "max_magnitude = %.1f, coef = %.3f\n", max_magnitude, norm_coef );
+//        printf( "max_magnitude = %.1f, coef = %.3f\n", max_magnitude, norm_coef );
 
         // Scale back and transform floats to shorts.
         for ( size_t i = 0; i < samples_count_per_chan; i++ ) 
@@ -385,8 +394,35 @@ void Wav::reverbate(double delay_seconds, float decay)
     }
 }
 
+int Wav::getSampleRate()
+{
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
+	return header.sampleRate;
+}
+
+int Wav::getChanCount()
+{
+	if (inited = false)
+		throw WavGeneralErrors("File not inited yet");
+	return header.numChannels;
+}
+
+bool Wav::isStereo()
+{
+	if (getChanCount() % 2 == 0)
+		return true;
+	else
+		return false;
+}
+
 Wav::Wav()
 {
+}
+
+Wav::Wav(char* filename)
+{
+	createFromFile(filename);
 }
 
 Wav::~Wav()
